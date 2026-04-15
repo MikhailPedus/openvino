@@ -184,6 +184,13 @@ NPU_MLIR_RUNTIME_APIEXPORT npu_mlir_runtime_result_t NPU_MLIR_RUNTIME_APICALL np
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Predit output shape based on input shape
+NPU_MLIR_RUNTIME_APIEXPORT npu_mlir_runtime_result_t NPU_MLIR_RUNTIME_APICALL npuMLIRRuntimeGenerateOptimizedElf(
+    npu_mlir_runtime_handle_t hRuntime,                      ///< [in] handle of mlir runtime object
+    npu_mlir_runtime_predict_output_shape_params_t* pParams  ///< [in] pointer togenerate optimized ELF parameters
+);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Create MemRef handle
 NPU_MLIR_RUNTIME_APIEXPORT npu_mlir_runtime_result_t NPU_MLIR_RUNTIME_APICALL npuMLIRRuntimeCreateMemRef(
     int64_t dimsCount,                             ///< [in] value of tensor rank

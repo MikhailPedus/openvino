@@ -382,6 +382,17 @@ void DynamicGraphImpl::predictOutputShape(std::vector<MemRefType>& inputDescript
         outputs.push_back(outImpl->_memRef);
     }
 
+    // call GenerateOptimizedELF unconditionally
+    npu_mlir_runtime_predict_output_shape_params_t paramsGenerateOptimizedELF;
+    paramsGenerateOptimizedELF.pInputs = inputs.data();
+    paramsGenerateOptimizedELF.numOfInputs = static_cast<uint32_t>(inputs.size());
+    paramsGenerateOptimizedELF.pOutputs = outputs.data();
+    paramsGenerateOptimizedELF.numOfOutputs = static_cast<uint32_t>(outputs.size());
+
+    if (npuMLIRRuntimeGenerateOptimizedElf(_engine, &paramsGenerateOptimizedELF) != NPU_MLIR_RUNTIME_RESULT_SUCCESS) {
+        OPENVINO_THROW("Failed to Generate Optimized ELF");
+    }
+
     npu_mlir_runtime_predict_output_shape_params_t params;
     params.pInputs = inputs.data();
     params.numOfInputs = static_cast<uint32_t>(inputs.size());
