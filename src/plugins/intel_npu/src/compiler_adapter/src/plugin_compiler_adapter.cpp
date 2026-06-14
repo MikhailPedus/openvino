@@ -64,16 +64,35 @@ std::shared_ptr<IGraph> PluginCompilerAdapter::compile(const std::shared_ptr<con
                                                        const FilteredConfig& config) const {
     OV_ITT_TASK_CHAIN(COMPILE_BLOB, itt::domains::NPUPlugin, "PluginCompilerAdapter", "compile");
 
+    // NPU_COMPILER_TYPE is a plugin-level routing key with OptionMode::RunTime, so it is
+    // stripped by FilteredConfig::toStringForCompiler() before reaching VCL. The compiler
+    // library therefore cannot distinguish the PLUGIN path from the DRIVER path and cannot
+    // auto-select HostCompile_Interpreter on its own. Perform the selection here, where we
+    // know we are on the PLUGIN path and have access to the ov::Model.
+    FilteredConfig effectiveConfig = config;
+    if (!config.has<COMPILATION_MODE>()) {
+        const auto isDynamic = [](const auto& port) {
+            return port.get_partial_shape().is_dynamic();
+        };
+        const bool inputsDynamic = std::any_of(model->inputs().begin(), model->inputs().end(), isDynamic);
+        const bool outputsDynamic = std::any_of(model->outputs().begin(), model->outputs().end(), isDynamic);
+        if (inputsDynamic && outputsDynamic) {
+            _logger.info("NPU_COMPILATION_MODE not set; selecting 'HostCompile_Interpreter' "
+                         "for fully-dynamic model (inputs and outputs both dynamic)");
+            effectiveConfig.update({{ov::intel_npu::compilation_mode.name(), "HostCompile_Interpreter"}});
+        }
+    }
+
     _logger.debug("compile start");
-    auto [tensor, compatibilityDescriptor] = _compiler->compile(model, config);
+    auto [tensor, compatibilityDescriptor] = _compiler->compile(model, effectiveConfig);
     _logger.debug("compile end");
 
-    if (config.get<COMPILATION_MODE>().find("HostCompile") == 0) {
+    if (effectiveConfig.get<COMPILATION_MODE>().find("HostCompile") == 0) {
         NPUVMRuntimeApi::initializeFromBlob(tensor.data(), tensor.get_byte_size());
 
         // metadata will be obtained in initialze() of DynamicGraph
         _logger.debug("Use dynamicGraph to hold blob for HostCompile mode!");
-        return std::make_shared<DynamicGraph>(_zeroInitStruct, std::move(tensor), true, config);
+        return std::make_shared<DynamicGraph>(_zeroInitStruct, std::move(tensor), true, effectiveConfig);
     }
 
     GraphDescriptor graphDesc;
@@ -101,7 +120,7 @@ std::shared_ptr<IGraph> PluginCompilerAdapter::compile(const std::shared_ptr<con
         graphDesc,
         std::move(networkMeta),
         std::move(tensor),
-        config,
+        effectiveConfig,
         compatibilityDescriptor,
         /* persistentBlob = */ true);  // exporting the blob shall be available in such a scenario
 }
